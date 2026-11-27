@@ -1,7 +1,6 @@
 {
   "name": "astwerk",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "A filter query language that parses key:value queries into a syntax tree, binds them to a schema and writes them back in one canonical form.",
   "keywords": [
     "ast",

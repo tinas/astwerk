@@ -49,7 +49,6 @@ A change to the syntax updates the README's syntax, grammar and canonical form s
 ## Releases
 
 - Maintainers write the changesets, on a contributor's PR too, for any change to the package's API or behaviour; docs and tests need none.
-- `packages/astwerk` is `private` until its first release. The release workflow publishes every version npm does not have, and until the first version is published by hand neither the package nor its trusted publisher exists, so each push to `main` would run a publish that fails.
 - The Changesets config has `format: false` because the formatter is `vp fmt`, configured in `vite.config.ts` where Changesets cannot find it; `pnpm version-packages` runs `changeset version && vp fmt`.
 - The changelog reads GitHub, so a local `pnpm version-packages` needs `GITHUB_TOKEN=$(gh auth token)`.
 - A prerelease starts with `pnpm changeset pre enter <tag>` and ends with `pnpm changeset pre exit`. The stable changelog is built from `.changeset/pre/`, so trim those files to what matters for the stable version first.
@@ -72,7 +71,7 @@ A change to the syntax updates the README's syntax, grammar and canonical form s
 
 ## Open work
 
-- The first release: drop `private`, add an "Initial release" changeset and publish it by hand.
+- The first release: publish 0.1.0 by hand before the first push to `main`, so the release workflow finds it on npm, then add the trusted publisher and the GitHub release of `astwerk@0.1.0`.
 - `vp run ready` does not check the README's TypeScript blocks. They type-check against the built package when extracted into a project that installs it, and that check belongs in `ready`.
 - GitHub setup: the `tinas/astwerk` repo, a `main` ruleset with squash merges and the `ci` check required, a ruleset that lets only admins and the release app create tags, and the release app's variable and secret.
 
