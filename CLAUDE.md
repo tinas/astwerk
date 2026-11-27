@@ -53,11 +53,14 @@ A change to the syntax updates the README's syntax, grammar and canonical form s
 - The changelog reads GitHub, so a local `pnpm version-packages` needs `GITHUB_TOKEN=$(gh auth token)`.
 - A prerelease starts with `pnpm changeset pre enter <tag>` and ends with `pnpm changeset pre exit`. The stable changelog is built from `.changeset/pre/`, so trim those files to what matters for the stable version first.
 - The CI job is named `ci`, the name a ruleset on `main` requires, so renaming it blocks every merge.
-- npm auth is trusted publishing (OIDC), with no token. Only the `publish` job has `id-token: write`.
-- A token that can publish to npm and one that can create tags never share a job, since everything a job installs or runs can use its tokens. `publish` has `id-token: write` and the dependencies, and creates no tags. `github-release` runs after it with neither, takes a token of a GitHub App (`RELEASE_APP_CLIENT_ID` variable, `RELEASE_APP_PRIVATE_KEY` secret), and creates a tag and a GitHub release for each published version, with its CHANGELOG section as the notes. When `github-release` fails after a publish, "Re-run failed jobs" runs it again for the same version.
-- pnpm adds provenance on its own for a public repo, and provenance fails unless the package's `repository` (with `directory`) matches the repo.
-- npm lets a package trust a workflow only once it exists, so the first version is published by hand (`pnpm release`), then `npm trust github astwerk --file release.yml --repo tinas/astwerk --allow-publish`, or the same on the package's Trusted Publisher settings with no environment and "Allow npm publish" ticked. Without that permission npm allows only staged publishes, and `publish` fails with `E403 OIDC permission denied for this action`.
-- The version PR is opened with the Actions token, so GitHub holds CI on it until it is approved ("Approve and run workflows"); `pack` runs `vp run ready` before anything is published either way.
+- npm auth is trusted publishing (OIDC) with no token, and the trusted publisher allows only staging ("Allow npm publish" unticked), so CI never puts a version live. A maintainer approves each staged version on npmjs.com with 2FA. Only the `stage` job has `id-token: write`.
+- `stage` stages each package of the publish plan with `npm stage publish`. Changesets cannot stage yet, so the job reads the `publish-plan.json` and `packages/*.tgz` that `changesets/action/pack` writes and runs npm itself, without a checkout, since npm refuses to run in a repo whose `devEngines` names pnpm. A tarball path starts with `./`, or npm reads it as a GitHub shorthand. npm runs through `npx` at a pinned version, since staging needs npm 11.15 or later, and Dependabot does not update that pin.
+- A staged version counts as unpublished, so until it is approved every push to `main` plans it again and npm answers `E409 … previously staged`. `stage` skips such a version and fails only on other errors.
+- `github-release` opens a draft GitHub release for each version `stage` staged, with its CHANGELOG section as the notes. A draft has no tag, and the tag ruleset keeps the Actions token from creating one, so no tag points at a version that is not approved. After approving on npm, the maintainer publishes the draft, which creates the tag. When `github-release` fails after staging, "Re-run failed jobs" runs it again for the same versions.
+- `stage` passes `--provenance`, and provenance fails unless the package's `repository` (with `directory`) matches the repo.
+- npm lets a package trust a workflow only once it exists, so the first version was published by hand (`pnpm release`). The package's Trusted Publisher settings trust `release.yml` of `tinas/astwerk` with no environment and "Allow npm publish" unticked; ticking it would let CI publish without approval.
+- A new package name first gets a `0.0.0-stage` placeholder on npm, and the registry can show only the placeholder for a minute or two after a publish.
+- The version PR is opened with the Actions token, so GitHub holds CI on it until it is approved ("Approve and run workflows"); `pack` runs `vp run ready` before anything is staged either way.
 - `changeset-status.yml` runs on `pull_request_target` so fork PRs get the comment; it checks out and reads, never runs the PR's code.
 - Actions are pinned to commit SHAs with the tag in a comment; Dependabot groups their updates monthly. `setup-vp` takes Node from `engines.node` (the newest release in the range), Vite+ from the catalog and pnpm from `devEngines`.
 - pnpm refuses versions younger than a day (`minimumReleaseAge`). A dependency that is too new waits, rather than going into `minimumReleaseAgeExclude`.
@@ -71,9 +74,10 @@ A change to the syntax updates the README's syntax, grammar and canonical form s
 
 ## Open work
 
-- The first release: publish 0.1.0 by hand before the first push to `main`, so the release workflow finds it on npm, then add the trusted publisher and the GitHub release of `astwerk@0.1.0`.
+- The GitHub release of `astwerk@0.1.0`, which was published by hand.
+- Changesets cannot stage yet ([changesets/changesets#2025](https://github.com/changesets/changesets/issues/2025)). Once it can, `stage` becomes `changesets/action/publish` with that option.
 - `vp run ready` does not check the README's TypeScript blocks. They type-check against the built package when extracted into a project that installs it, and that check belongs in `ready`.
-- GitHub setup: the `tinas/astwerk` repo, a `main` ruleset with squash merges and the `ci` check required, a ruleset that lets only admins and the release app create tags, and the release app's variable and secret.
+- GitHub setup: the `tinas/astwerk` repo, Actions allowed to create pull requests (for the version PR), a `main` ruleset with squash merges and the `ci` check required, and a ruleset that lets only admins create tags.
 
 <!--VITE PLUS START-->
 
