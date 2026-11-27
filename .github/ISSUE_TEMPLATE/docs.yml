@@ -1,0 +1,16 @@
+name: Docs or question
+description: Something in the README is missing, unclear or wrong, or you have a question.
+labels: [documentation]
+body:
+  - type: input
+    id: section
+    attributes:
+      label: Section
+      description: The README section, if there is one.
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Your question, or what is missing, unclear or wrong in the README.
+    validations:
+      required: true

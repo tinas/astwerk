@@ -1,0 +1,55 @@
+# Contributing to astwerk
+
+astwerk is an open source project, and we welcome contributions of all kinds, from answering a question to sending a pull request.
+
+## How to contribute
+
+### Help out in issues
+
+Answering a question, sharing a workaround or turning a bug report into a smaller reproduction helps as much as code does. Have a look at the [open issues](https://github.com/tinas/astwerk/issues).
+
+### Open an issue
+
+Search the existing issues first, then pick one of the templates. For a bug, the query text and the schema that show it are the most useful thing you can give us. If the README left you with a question, the "Docs or question" template is the place for it.
+
+### Send a pull request
+
+We're always happy to see a pull request.
+
+#### Before you start
+
+If you're fixing a bug, check whether an issue describes it. The behaviour may be intended, or the issue may hold context that helps.
+
+If you're working on a feature or a change to the query language, open a feature request first and wait for a maintainer to confirm it. That way we agree on the design before you spend time on the code.
+
+#### Set up the repository
+
+The package lives in `packages/astwerk`.
+
+1. Fork the repository and clone your fork.
+2. Install [Vite+](https://viteplus.dev/guide/). Its `vp` command also sets up the Node.js and pnpm versions the repository needs.
+3. Install the dependencies with `vp install`.
+4. Create a branch for your change, such as `fix/unclosed-quote-span`.
+
+```sh
+vp run ready       # format, lint, type check, tests and build, as in CI
+```
+
+#### Commit conventions
+
+We use [Conventional Commits](https://www.conventionalcommits.org). Use `fix:` and `feat:` for changes to the code, and `docs:` or `chore:` for documentation and typos.
+
+#### Making the pull request
+
+We squash and merge pull requests, so the title becomes the commit message. Please write it in the same format as a commit. It's fine to have several commits in a pull request, and there's no need to rebase or force push.
+
+- If your pull request fixes an issue, mention it in the description.
+- If you change how astwerk behaves, add a test that fails without your change and update the README where it describes the behaviour.
+- Make sure `vp run ready` passes before you open the pull request.
+- Keep the pull request to one thing, without unrelated changes such as formatting elsewhere in a file.
+- Leave versions, changelogs and changesets to us. Maintainers handle releases.
+- Keep edits by maintainers allowed, so we can make small fixes before merging.
+
+#### Once you've made a pull request
+
+We'll review it as soon as we can. If we ask for changes, it doesn't mean the pull request is bad. It's part of getting it ready to merge.
