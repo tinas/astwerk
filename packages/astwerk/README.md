@@ -70,7 +70,7 @@ is:open label:bug,ui -assignee:ahmet amount:10..40 (priority:high OR no:assignee
 | `amount:<10,>100`                                        | either range                                                                 |
 | `sprint:"Sprint 1".."Sprint 4"`, `sprint:<"Sprint 5"`    | bounds with spaces, in quotes                                                |
 
-- Field names are written exactly as the schema names them, and a field written any other way is reported as unknown. Values match without regard to case, so `is:OPEN` finds what `is:open` finds.
+- Field names are written exactly as the schema names them, and a field written any other way is reported as unknown. Values match without regard to case, so `is:OPEN` finds what `is:open` finds. Case is compared without a locale, the same on every host, so the Turkish `İ` and `ı` do not match `i` and `I`.
 - `has` and `no` take a field name as their value, so no field can be named `has` or `no`.
 - `OR`, `AND` and `NOT` are operators only in capitals, so a lower-case `or` is free text.
 - `-` and `NOT` negate one term or word. A `-` negates only at the start of a word, so `amount:-5..5` runs from -5 to 5.
@@ -135,7 +135,7 @@ const issueSchema = defineSchema({
 })
 ```
 
-`get` may return one value, a list of values or nothing. A list matches when any of its values does, and an empty list or a missing value is what `no:field` finds. `text` gives the text that free words search, and without it free words filter nothing in `toPredicate`.
+`get` may return one value, a list of values or nothing. A list matches when any of its values does, and an empty list or a missing value is what `no:field` finds. An empty string is a value, as it is in a database, so a `get` that means no value returns `undefined`. `text` gives the text that free words search, and without it free words filter nothing in `toPredicate`.
 
 ### Field Types
 
@@ -147,7 +147,9 @@ const issueSchema = defineSchema({
 | `boolean()`      | `true` or `false`, in any case                                      | no     | no        |
 | `date()`         | a day or an instant, with `@today`. An item's value may be a `Date` | yes    | no        |
 
-`string()`, `number()` and `date()` take `suggest`, a function from the typed prefix to suggested values that may return a promise, and `tokens`. `enumOf` takes `tokens`.
+`string()`, `number()` and `date()` take `suggest`, a function from the typed prefix to suggested values, and `tokens`. `enumOf` takes `tokens`.
+
+`enumOf` is a list the schema closes, so `is:merged` on `enumOf(['open', 'closed'])` is an invalid value, reported and filtering nothing. No type checks a value against data, so a label that exists nowhere is a valid `string()` value that matches nothing. A field whose values come from data, such as labels or people, is therefore a `string()`, and the app passes the values it loads to `getSuggestions`, as [Values Loaded at Runtime](#values-loaded-at-runtime) shows.
 
 ### Dynamic Values
 
@@ -246,19 +248,37 @@ An `error` marks a part that filters nothing, and a `warning` text that filters 
 
 `highlight` gives the spans to color, in order, with a kind for each: `key`, `value`, `dynamic` for a token, `text`, `keyword` for `OR`, `AND` and `NOT`, `negation`, `comparison`, `range`, `separator` and `paren`.
 
-`getCompletionContext` tells what the cursor is on. On a word that may become a field name it gives a `key` context, and on a value a `value` context with the field's key, the values already in the term and any comparison written before the value. Pass the context to `getSuggestions` for the suggestions, whose `insertText` replaces the text from `from` to `to`, quoted where the value needs it.
+`getCompletionContext` tells what the cursor is on. On a word that may become a field name it gives a `key` context, and on a value a `value` context with the field's key, the values already in the term and any comparison written before the value. Pass the context to `getSuggestions` for the suggestions, whose `insertText` replaces the text from `from` to `to`, quoted where the value needs it. Field names and tokens are suggested when they start with the prefix, and a type's values as its `suggest` chooses. An editor that ranks candidates with its own matching passes the context with an empty `prefix` and gets them all.
 
 ```ts
 const context = getCompletionContext('is:open,c', 9)
 // { kind: 'value', key: 'is', prefix: 'c', from: 8, to: 9, taken: ['open'], atEnd: true }
 
 if (context != undefined) {
-  const suggestions = await getSuggestions(context, issueSchema)
+  const suggestions = getSuggestions(context, issueSchema)
   // [{ label: 'closed', insertText: 'closed' }]
 }
 ```
 
-`getSuggestions` returns a promise only when the field type's `suggest` does, so an editor that offers the latest answer should drop the answers to older prefixes. Inside quoted free text there is no context to complete.
+Inside quoted free text there is no context to complete.
+
+### Values Loaded at Runtime
+
+Values that only the app can load, such as the labels of a repository, stay out of the schema, so the schema remains a definition and the canonical text never depends on what has loaded. Such a field is a `string()`, which takes any value, so a label that does not exist is written without a diagnostic and simply matches nothing; only the syntax around it is checked. The editor loads them for the field that `fieldNameOf` names, which follows aliases, and passes them to `getSuggestions` as `values`. They come after the field type's own values and tokens, so the editor shows the list at once and it grows below when they arrive. They are suggested as given, without filtering by the prefix, and the ones already in the term or in the list are left out.
+
+```ts
+const context = getCompletionContext('labels:d', 8)
+
+if (context?.kind == 'value' && fieldNameOf(issueSchema, context.key) == 'label') {
+  const shown = getSuggestions(context, issueSchema)
+  const labels = await searchLabels(context.prefix)
+  const complete = getSuggestions(context, issueSchema, {
+    values: labels.map(label => ({ value: label.name, description: label.description })),
+  })
+}
+```
+
+`getSuggestions` is synchronous, and astwerk uses no timers or browser APIs, so waiting until typing stops, cancelling a request for a prefix that is gone and showing that values are loading are the editor's.
 
 ## Queries
 
@@ -343,6 +363,10 @@ const cleared = stringify(withoutField(query, 'label'), issueSchema)
 ## Requirements
 
 TypeScript 5.4 or later. The package is published as ES modules.
+
+## The Name
+
+In German, an _Ast_ is a branch, and _Astwerk_ is the branches of a tree taken together, as well as the late Gothic ornament of intertwined branches carved in stone. The name also begins with AST, the abstract syntax tree that every filter is read into, so it says what the package does: it turns a line of text into a tree of branches and writes the tree back as text.
 
 ## License
 

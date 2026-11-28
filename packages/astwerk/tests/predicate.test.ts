@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vite-plus/test'
 
-import type { ResolveContext } from '../src'
+import type { ResolveContext, Schema } from '../src'
 
 import { bind, defineSchema, number, parse, string, toPredicate } from '../src'
 import { issueSchema, issues } from './fixtures/issues'
@@ -10,6 +10,10 @@ const NOW = new Date('2026-03-05T12:00:00Z')
 function titlesFor(text: string, context: ResolveContext = { now: NOW, user: 'ahmet' }): Array<string> {
   const { query } = bind(parse(text).tree, issueSchema)
   return issues.filter(toPredicate(query, issueSchema, context)).map(issue => issue.title)
+}
+
+function itemsFor<Item>(items: Array<Item>, text: string, schema: Schema): Array<Item> {
+  return items.filter(toPredicate(bind(parse(text).tree, schema).query, schema))
 }
 
 const CRASH = 'Crash when the release notes are empty'
@@ -93,6 +97,13 @@ describe('toPredicate', () => {
       expect(titlesFor('comments:12,many')).toEqual([CRASH])
     })
 
+    test('a value outside the list of an enum is reported and filters nothing', () => {
+      expect(bind(parse('is:merged').tree, issueSchema).diagnostics.map(diagnostic => diagnostic.code)).toEqual([
+        'invalidValue',
+      ])
+      expect(titlesFor('is:merged')).toEqual([CRASH, EXPORT, DARK_MODE])
+    })
+
     test('a negated group filters nothing', () => {
       expect(titlesFor('-(is:open OR locked:true) label:docs')).toEqual([EXPORT])
     })
@@ -100,6 +111,26 @@ describe('toPredicate', () => {
 
   test('a field without get reads the property of its name', () => {
     expect(titlesFor('author:tinastepe')).toEqual([CRASH])
+  })
+
+  test('a field whose get is undefined reads the property of its name, as one without get does', () => {
+    const schema = defineSchema({ fields: { author: { type: string(), get: undefined } } })
+    expect(itemsFor(issues, 'author:tinastepe', schema).map(issue => issue.title)).toEqual([CRASH])
+  })
+
+  test('an empty string is a value, so no: leaves it out as a backend does', () => {
+    const schema = defineSchema({ fields: { milestone: { type: string() } } })
+    const milestones = [{ milestone: '' }, { milestone: undefined }, {}]
+    expect(itemsFor(milestones, 'no:milestone', schema)).toEqual([{ milestone: undefined }, {}])
+    expect(itemsFor(milestones, 'has:milestone', schema)).toEqual([{ milestone: '' }])
+  })
+
+  test('compares case without a locale, so the Turkish İ and ı do not match i and I', () => {
+    const schema = defineSchema({ fields: { city: { type: string() } } })
+    const cities = [{ city: 'İzmir' }, { city: 'ılgaz' }, { city: 'Iğdır' }]
+    expect(itemsFor(cities, 'city:izmir', schema)).toEqual([])
+    expect(itemsFor(cities, 'city:ILGAZ', schema)).toEqual([])
+    expect(itemsFor(cities, 'city:iğdır', schema)).toEqual([{ city: 'Iğdır' }])
   })
 
   test('without a text function, free words filter nothing', () => {

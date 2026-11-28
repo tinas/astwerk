@@ -14,7 +14,7 @@ These rules are the design. Changing one is agreed with the maintainer before an
 4. Parsing never throws. Partial or broken text, such as `status:`, an unclosed quote or a missing parenthesis, still gives a tree, with diagnostics for what is wrong.
 5. There are two layers. The syntax tree holds positions and raw strings and knows no schema, so editors highlight and complete with it. Binding the tree to a schema gives the typed query, with typed values and a small, fixed set of conditions, which panels, predicates and backends read.
 6. A filter has one canonical form. The same filter always writes the same text, and `canonical(canonical(text)) == canonical(text)` for every input.
-7. Mistakes stay visible and harmless. An unknown field or an invalid value becomes a diagnostic and stays in the text, and evaluation treats it as no constraint, so a typo never empties a list.
+7. Mistakes stay visible and harmless. An unknown field or an invalid value becomes a diagnostic and stays in the text, and evaluation treats it as no constraint, so a typo never empties a list. A value is invalid when its type cannot read it, such as `amount:abc`, or when the schema closes the list of values and leaves it out, such as `is:merged` for `enumOf(['open', 'closed'])`. Values are never checked against data, so a label that exists nowhere is a filter that matches nothing.
 8. Dynamic values are `@` tokens, such as `@today-7d`. They stay as written in the canonical text, so a shared link keeps its meaning instead of the day it was made. The date type knows `@today`, and an app's field types add tokens such as `@me`.
 
 ## Left out on purpose

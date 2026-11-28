@@ -3,7 +3,7 @@ import type { Schema } from '../schema/schema'
 import type { CompletionContext, KeyCompletion, ValueCompletion } from './completion-context'
 
 import { equalsIgnoringCase, startsWithIgnoringCase } from '../case-insensitive'
-import { findField, isPresenceKey, PRESENCE_KEYS } from '../schema/schema'
+import { fieldNameOf, findField, isPresenceKey, PRESENCE_KEYS } from '../schema/schema'
 import { writeKey, writeValue } from '../syntax/write'
 
 /** `insertText` is ready to replace the context's `from` to `to`, quoted where the value needs it. */
@@ -13,14 +13,21 @@ export interface Suggestion {
   description?: string
 }
 
-type Suggestions = Array<Suggestion> | Promise<Array<Suggestion>>
+export interface SuggestionOptions {
+  /**
+   * Values the app loaded for the field of a value context, such as the labels of a repository. They follow the
+   * field type's values and tokens, unfiltered by the prefix, without the ones the term or the list already has.
+   */
+  values?: ReadonlyArray<FieldSuggestion<unknown>>
+}
 
-/**
- * Suggests field names for a key, and for a value the field type's suggestions followed by its tokens. A field type
- * whose `suggest` is asynchronous makes the result a promise.
- */
-export function getSuggestions(context: CompletionContext, schema: Schema): Suggestions {
-  return context.kind == 'key' ? suggestKeys(context, schema) : suggestValues(context, schema)
+/** Suggests field names for a key, and for a value the field type's values, its tokens and then the loaded values. */
+export function getSuggestions(
+  context: CompletionContext,
+  schema: Schema,
+  options: SuggestionOptions = {},
+): Array<Suggestion> {
+  return context.kind == 'key' ? suggestKeys(context, schema) : suggestValues(context, schema, options.values ?? [])
 }
 
 function suggestKeys(context: KeyCompletion, schema: Schema): Array<Suggestion> {
@@ -41,15 +48,22 @@ function suggestKeys(context: KeyCompletion, schema: Schema): Array<Suggestion> 
   return [...fields, ...presence]
 }
 
-function suggestValues(context: ValueCompletion, schema: Schema): Suggestions {
+function suggestValues(
+  context: ValueCompletion,
+  schema: Schema,
+  loaded: ReadonlyArray<FieldSuggestion<unknown>>,
+): Array<Suggestion> {
   if (isPresenceKey(context.key)) return suggestFieldNames(context, schema)
-  const field = findField(schema, schema['~names'].get(context.key) ?? '')
+  const field = findField(schema, fieldNameOf(schema, context.key) ?? '')
   if (field == undefined) return []
-  const tokens = suggestTokens(context, field.type)
-  const values = field.type.suggest?.(context.prefix) ?? []
-  if (values instanceof Promise)
-    return values.then(resolved => [...toSuggestions(resolved, context, field.type), ...tokens])
-  return [...toSuggestions(values, context, field.type), ...tokens]
+  const own = [
+    ...toSuggestions(field.type.suggest?.(context.prefix) ?? [], context, field.type),
+    ...suggestTokens(context, field.type),
+  ]
+  const added = toSuggestions(loaded, context, field.type).filter(
+    suggestion => !own.some(shown => equalsIgnoringCase(shown.insertText, suggestion.insertText)),
+  )
+  return [...own, ...added]
 }
 
 function suggestFieldNames(context: ValueCompletion, schema: Schema): Array<Suggestion> {
@@ -72,7 +86,7 @@ function suggestTokens(context: ValueCompletion, type: FieldType<unknown>): Arra
 }
 
 function toSuggestions(
-  values: Array<FieldSuggestion<unknown>>,
+  values: ReadonlyArray<FieldSuggestion<unknown>>,
   context: ValueCompletion,
   type: FieldType<unknown>,
 ): Array<Suggestion> {

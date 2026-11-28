@@ -24,7 +24,8 @@ export interface FieldType<V> {
   compare?(a: V, b: V): number
   /** Lets an unquoted `*` stand for any text, as in `label:*bug*`. */
   wildcards?: boolean
-  suggest?(prefix: string): Array<FieldSuggestion<V>> | Promise<Array<FieldSuggestion<V>>>
+  /** Values the type suggests for the typed prefix. Values an app loads at runtime go to `getSuggestions` instead. */
+  suggest?(prefix: string): Array<FieldSuggestion<V>>
   /** Dynamic values the type accepts, by name without the `@`. */
   tokens?: Readonly<Record<string, TokenDefinition<V>>>
 }

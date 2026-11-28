@@ -27,7 +27,7 @@ export function toPredicate<Item>(query: Query, schema: Schema<Item>, context: R
     in: condition => matchesIn(condition, schema),
     range: condition => matchesRange(condition, schema),
     text: condition => matchesText(condition, schema),
-    empty: condition => item => fieldValues(item, condition.field, schema).every(value => value === ''),
+    empty: condition => item => fieldValues(item, condition.field, schema).length == 0,
     match: condition => matchesPattern(condition, schema),
   }
   return fold(resolveTokens(evaluable(query, schema), schema, context), schema, visitor)
@@ -100,7 +100,7 @@ function startsAWord(text: string, word: string): boolean {
 
 function fieldValues<Item>(item: Item, field: string, schema: Schema<Item>): Array<unknown> {
   const definition = findField(schema, field)
-  const value = definition != undefined && 'get' in definition ? definition.get?.(item) : ownProperty(item, field)
+  const value = definition?.get == undefined ? ownProperty(item, field) : definition.get(item)
   if (value == undefined) return []
   return Array.isArray(value) ? value.filter(element => element != undefined) : [value]
 }
