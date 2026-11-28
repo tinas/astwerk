@@ -59,6 +59,11 @@ export function defineSchema<Item = unknown, Values extends Record<string, unkno
   return { ...definition, fields, '~names': names }
 }
 
+/** The field a key stands for, following aliases. `undefined` for a key the schema does not know. */
+export function fieldNameOf(schema: Schema, key: string): string | undefined {
+  return schema['~names'].get(key)
+}
+
 export function findField<Item>(schema: Schema<Item>, name: string): FieldDefinition<Item, unknown> | undefined {
   return Object.hasOwn(schema.fields, name) ? schema.fields[name] : undefined
 }

@@ -70,6 +70,9 @@ describe('enumOf', () => {
 
   test('reads a value in any case as the listed one', () => {
     expect(type.parse('OPEN')).toBe('open')
+  })
+
+  test('rejects a value outside its list, since the schema closes the list', () => {
     expect(type.parse('merged')).toBeUndefined()
   })
 

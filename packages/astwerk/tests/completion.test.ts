@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vite-plus/test'
 
-import type { CompletionContext } from '../src'
+import type { CompletionContext, SuggestionOptions } from '../src'
 
-import { defineSchema, getCompletionContext, getSuggestions, string } from '../src'
+import { fieldNameOf, getCompletionContext, getSuggestions } from '../src'
 import { issueSchema } from './fixtures/issues'
 
 const CURSOR = '|'
@@ -49,10 +49,10 @@ describe('getCompletionContext', () => {
 })
 
 describe('getSuggestions', () => {
-  function suggest(textWithCursor: string) {
+  function suggest(textWithCursor: string, options?: SuggestionOptions) {
     const context = contextAt(textWithCursor)
     if (context == undefined) throw new Error('no completion context')
-    return getSuggestions(context, issueSchema)
+    return getSuggestions(context, issueSchema, options)
   }
 
   test('suggests fields whose name or label starts with the prefix, then has and no', () => {
@@ -62,6 +62,29 @@ describe('getSuggestions', () => {
     ])
     expect(suggest('t|')).toEqual([{ label: 'Target date', insertText: '"target date":' }])
     expect(suggest('n|')).toEqual([{ label: 'no', insertText: 'no:' }])
+  })
+
+  test('suggests every field and token to a context with an empty prefix, for an editor that matches on its own', () => {
+    const key = contextAt('lbl|')
+    const value = contextAt('created:tdy|')
+    if (key == undefined || value == undefined) throw new Error('no completion context')
+    expect(suggest('lbl|')).toEqual([])
+    expect(getSuggestions({ ...key, prefix: '' }, issueSchema).map(suggestion => suggestion.insertText)).toEqual([
+      'is:',
+      'label:',
+      'assignee:',
+      'author:',
+      'comments:',
+      'created:',
+      'locked:',
+      'milestone:',
+      '"target date":',
+      'has:',
+      'no:',
+    ])
+    expect(getSuggestions({ ...value, prefix: '' }, issueSchema).map(suggestion => suggestion.insertText)).toEqual([
+      '@today',
+    ])
   })
 
   test('suggests the values of an enum', () => {
@@ -89,11 +112,46 @@ describe('getSuggestions', () => {
     expect(suggest('unknown:|')).toEqual([])
   })
 
-  test('is a promise when the field type suggests asynchronously', async () => {
-    const schema = defineSchema({ fields: { label: { type: string({ suggest: async () => [{ value: 'bug' }] }) } } })
-    const context = getCompletionContext('label:', 6)
-    const suggestions = context && getSuggestions(context, schema)
-    expect(suggestions).toBeInstanceOf(Promise)
-    await expect(suggestions).resolves.toEqual([{ label: 'bug', insertText: 'bug' }])
+  test('suggests the values the app loaded after the values and tokens of the field type', () => {
+    expect(suggest('assignee:|', { values: [{ value: 'ahmet', description: 'Ahmet Tinastepe' }] })).toEqual([
+      { label: '@me', insertText: '@me', description: 'The signed-in user' },
+      { label: 'ahmet', insertText: 'ahmet', description: 'Ahmet Tinastepe' },
+    ])
+  })
+
+  test('suggests loaded values as given, quoted where they need it, without the ones the term or the list has', () => {
+    const values = [{ value: 'BUG' }, { value: 'Docs' }, { value: 'triage' }, { value: 'needs review' }]
+    expect(suggest('labels:bug,x|', { values })).toEqual([
+      { label: 'Docs', insertText: 'Docs' },
+      { label: 'triage', insertText: 'triage' },
+      { label: 'needs review', insertText: '"needs review"' },
+    ])
+    expect(suggest('label:bug,|', { values })).toEqual([
+      { label: 'docs', insertText: 'docs' },
+      { label: 'enhancement', insertText: 'enhancement' },
+      { label: 'in progress', insertText: '"in progress"' },
+      { label: 'triage', insertText: 'triage' },
+      { label: 'needs review', insertText: '"needs review"' },
+    ])
+  })
+
+  test('leaves loaded values out of field names and of has and no', () => {
+    const values = [{ value: 'bug' }]
+    expect(suggest('a|', { values })).toEqual(suggest('a|'))
+    expect(suggest('no:mi|', { values })).toEqual(suggest('no:mi|'))
+    expect(suggest('unknown:|', { values })).toEqual([])
+  })
+})
+
+describe('fieldNameOf', () => {
+  test('names the field a key or an alias stands for', () => {
+    expect(fieldNameOf(issueSchema, 'label')).toBe('label')
+    expect(fieldNameOf(issueSchema, 'labels')).toBe('label')
+  })
+
+  test('names no field for a key the schema does not know', () => {
+    expect(fieldNameOf(issueSchema, 'Label')).toBeUndefined()
+    expect(fieldNameOf(issueSchema, 'no')).toBeUndefined()
+    expect(fieldNameOf(issueSchema, 'constructor')).toBeUndefined()
   })
 })
